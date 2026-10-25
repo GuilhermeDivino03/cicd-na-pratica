@@ -1,0 +1,57 @@
+# CD: roda quando você cria uma tag de versão (ex.: v1.0.0).
+# Fluxo: build -> deploy em homologação (automático) -> deploy em produção (com aprovação).
+name: CD
+
+on:
+  push:
+    tags: [ "v*" ]
+
+permissions:
+  contents: write   # necessário pra criar a Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Build e testes
+        run: mvn -B verify
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-jar
+          path: target/app.jar
+
+  homologacao:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: homologacao
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-jar
+      - name: "Deploy simulado em HML"
+        run: |
+          echo "Publicando em ${{ vars.URL_AMBIENTE }}"
+          java -jar app.jar   # smoke test: o app sobe e responde?
+
+  producao:
+    needs: homologacao
+    runs-on: ubuntu-latest
+    environment: producao   # aqui o GitHub pausa e espera aprovação
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-jar
+      - name: Criar Release com o .jar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" app.jar \
+            --title "Versão ${{ github.ref_name }}" \
+            --notes "Publicado pelo pipeline após aprovação."
