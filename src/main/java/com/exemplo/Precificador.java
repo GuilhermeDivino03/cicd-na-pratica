@@ -16,7 +16,7 @@ public class Precificador {
             return total * 0.85; // 15% de desconto
         }
         if (quantidade >= 10) {
-            return total * 0.95; // 5% de desconto
+            return total * 0.90; // 5% de desconto
         }
         return total;
     }
